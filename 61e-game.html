@@ -84,6 +84,10 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
 #pause,#end{background:rgba(13,20,32,.82)}
 #end-stats{margin-bottom:1rem}
 
+.btn small{display:block;font-size:.85rem;color:var(--powder);margin-top:.25rem}
+.btn.primary small{color:var(--navy)}
+#hurt{position:absolute;inset:0;opacity:0;background:radial-gradient(ellipse at center,rgba(160,0,0,.15) 30%,rgba(190,10,10,.85) 100%)}
+
 </style>
 </head>
 <body>
@@ -94,16 +98,28 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
   <main id="menu" class="screen active">
     <div class="menu-card">
       <h1 class="title"><span class="num">61<sup>e</sup></span> Game</h1>
-      <p class="subtitle">Musket Training - Be like Col Macbeth</p>
+<p class="subtitle">Musket Training - Be like Col Macbeth</p>
+      <nav class="menu-buttons">
       <nav class="menu-buttons">
         <button id="btn-play" class="btn primary">Play</button>
         <button id="btn-how" class="btn">How to play</button>
         <button id="btn-settings" class="btn">Settings</button>
       </nav>
-      <p class="foot">Belated HAPPY BIRTHDAY, SIR OZAN!!!!</p>
-      <!-- <p class="foot">Regiment of the Line &middot; Training Ground</p> -->
+            <p class="foot">Belated HAPPY BIRTHDAY, SIR OZAN!!!!</p>
     </div>
   </main>
+
+  <!-- DIFFICULTY -->
+  <section id="mode" class="screen">
+    <div class="menu-card">
+      <h2>Choose difficulty</h2>
+      <div class="menu-buttons">
+        <button id="btn-easy" class="btn primary">Easy<small>Marching infantry targets</small></button>
+        <button id="btn-hard" class="btn">Hard<small>Hussars charge and dodge when you aim at them.</small></button>
+        <button class="btn back">Back</button>
+      </div>
+    </div>
+  </section>
 
   <!-- HOW TO PLAY -->
   <section id="how" class="screen">
@@ -118,7 +134,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
         <dt>Right click</dt><dd>Aim (also Shift)</dd>
         <dt>Esc</dt><dd>Pause</dd>
       </dl>
-      <p class="hint">Hit 10 moving infantry targets in five minutes. A musket fires once, then you reload. Make the shot count.</p>
+      <p class="hint">Hit 10 moving infantry targets in five minutes. A musket fires once, then you must go through the full loading drill (about 7 seconds). Make the shot count. On Hard, a hussar on horseback zigzags toward you; he dodges when your sights are on him, so time your shot. Move with WASD.</p>
       <button class="btn back">Back</button>
     </div>
   </section>
@@ -142,6 +158,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
     <div id="cross"></div>
     <div id="tinfo"></div>
     <div id="msg"></div>
+    <div id="hurt"></div>
   </div>
   <section id="pause" class="screen"><div class="menu-card"><h2>Paused</h2>
     <button id="btn-resume" class="btn primary">Resume</button>
@@ -309,9 +326,26 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
 (function () {
   'use strict';
   const C = { hitsToWin: 10, time: 300, reloadTime: 4.2, targetCount: 6, eye: 1.7, playerZ: 45,
-              targetScale: 1.3, rangeX: 26, fovHip: 70, fovAim: 48 };
+              targetScale: 1.3, maxHussars: 4, rangeX: 26, fovHip: 70, fovAim: 48 };
   const STAGES = ['Recover', 'Prepare powder', 'Load powder', 'Load ball', 'Ram', 'Prime pan', 'Ready'];
-  const ZONE = { head: ['Head', 100], torso: ['Torso', 50], arms: ['Arm', 25], legs: ['Leg', 20] };
+  const HIP = [0.2, -0.22, -0.3, 0, -0.03, 0, 0.04, -0.08, 0.12, 0];
+  const LOCK = [0.06, -0.2, -0.28, 0.05, -0.55, 0.3, 0.035, 0.02, 0.02, 0];
+  const UP = [0.12, -0.5, -0.3, 0.8, 0, 0.05];                 // musket upright, muzzle toward the sky
+  const RELOAD = [   // n: name, d: seconds, p: pose, s: sound on entry
+    { n: 'Half-cock the lock',   d: 0.6, p: LOCK, s: 'click' },
+    { n: 'Bite the cartridge',   d: 0.9, p: [0.1, -0.3, -0.32, 0.05, -0.4, 0.15, 0.03, 0.12, 0.3, 0], s: 'tear' },
+    { n: 'Prime the pan',        d: 0.7, p: LOCK, s: 'prime' },
+    { n: 'Close the frizzen',    d: 0.4, p: [0.06, -0.2, -0.28, 0.05, -0.55, 0.3, 0.035, 0.03, 0, 0], s: 'frizzen' },
+    { n: 'Pour powder',          d: 0.9, p: [...UP, 0, 0.03, -0.92, 0], s: 'pour' },
+    { n: 'Ball and paper wad',   d: 0.7, p: [...UP, 0.01, 0.03, -0.95, 0], s: 'thud' },
+    { n: 'Draw the ramrod',      d: 0.6, p: [...UP, 0, 0, -1.2, -0.7], s: 'scrape', rodHand: true },
+    { n: 'Ram the charge',       d: 1.2, p: [...UP, 0, 0, -1.2, -0.7], ram: true, rodHand: true },
+    { n: 'Return the ramrod',    d: 0.5, p: [...UP, 0, 0, -0.9, 0], s: 'scrape', rodHand: true },
+    { n: 'Shoulder and full cock', d: 0.8, p: [0.2, -0.22, -0.3, 0, -0.03, 0, 0.035, 0.02, 0.02, 0], s: 'cock' }
+  ];
+  const RELOAD_TOTAL = RELOAD.reduce((a, s) => a + s.d, 0);
+  const smooth = (x) => x * x * (3 - 2 * x);
+  const ZONE = { head: ['Head', 100], torso: ['Torso', 50], arms: ['Arm', 25], legs: ['Leg', 20], horse: ['Horse', 40] };
   const $ = (id) => document.getElementById(id);
 
   /* ---------- Sound (Web Audio, no files needed) ---------- */
@@ -339,6 +373,13 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
     shot() { this.burst(1.1, 1600, 0.9); }
     click() { this.burst(0.05, 4500, 0.3); }
     hit() { this.tone(180, 0.18, 0.25); }
+    ouch() {   // falling "aargh" for taking a hit
+      if (!this.on || !this.ctx) return;
+      const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(340, c.currentTime); o.frequency.exponentialRampToValueAtTime(90, c.currentTime + 0.4);
+      g.gain.setValueAtTime(0.3, c.currentTime); g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.45);
+      o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + 0.45); this.burst(0.15, 900, 0.5);
+    }
   }
 
   /* ---------- Pooled smoke puffs + muzzle flash ---------- */
@@ -409,6 +450,29 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
     return g;
   }
 
+  /* ---------- Hussar: rider with sabre on a horse (Hard mode) ---------- */
+  MATS.horse = M(0x5b3a22); MATS.red = M(0xa02222);
+  function buildHussar() {
+    const g = new THREE.Group();
+    const part = (geo, mat, x, y, z, zone, rx, rz) => {
+      const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx || 0, 0, rz || 0);
+      m.castShadow = true; m.userData.zone = zone; g.add(m); return m;
+    };
+    const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+    part(box(0.6, 0.7, 1.6), MATS.horse, 0, 1.15, 0, 'horse');                       // horse body
+    part(box(0.25, 0.7, 0.3), MATS.horse, 0, 1.65, 0.85, 'horse', -0.5);             // neck
+    part(box(0.2, 0.25, 0.5), MATS.horse, 0, 1.95, 1.2, 'horse');                    // head
+    part(box(0.08, 0.5, 0.08), MATS.black, 0, 1.2, -0.9, 'horse', 0.4);              // tail
+    for (const [x, z] of [[-0.2, 0.6], [0.2, 0.6], [-0.2, -0.6], [0.2, -0.6]]) part(box(0.14, 0.85, 0.14), MATS.horse, x, 0.42, z, 'horse');
+    part(box(0.46, 0.6, 0.3), MATS.navy, 0, 1.9, 0, 'torso');                        // rider dolman
+    part(box(0.1, 0.62, 0.32), MATS.red, 0, 1.9, 0, 'torso');                        // red cord
+    part(new THREE.SphereGeometry(0.14, 8, 6), MATS.skin, 0, 2.4, 0, 'head');
+    part(new THREE.CylinderGeometry(0.13, 0.15, 0.3, 8), MATS.black, 0, 2.6, 0, 'head'); // shako
+    part(box(0.12, 0.5, 0.12), MATS.navy, 0.34, 2.15, 0.1, 'arms', 0, -0.6);         // sword arm
+    part(box(0.03, 1.0, 0.03), MATS.steel, 0.6, 2.6, 0.25, 'arms', 0, -0.6);         // sabre
+    return g;
+  }
+
   class Gameplay {
     constructor(game, settings) {
       this.game = game; this.settings = settings; this.cam = game.camera;
@@ -418,7 +482,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       this.buildMusket();
       this.buildHUD();
       this.bindInput();
-      this.stats = null;
+      this.stats = null; this.hussars = []; this.hussarQ = []; this.keys = {}; this.pos = new THREE.Vector3(); this.walkT = 0;
     }
 
     buildMusket() {
@@ -431,8 +495,14 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       add(new THREE.BoxGeometry(0.024, 0.014, 0.012), MATS.black, 0, 0.022, -0.1);       // rear sight
       add(new THREE.BoxGeometry(0.03, 0.03, 0.06), MATS.steel, 0.03, 0.01, 0.02);        // lock
       add(new THREE.BoxGeometry(0.09, 0.09, 0.28), MATS.navy, -0.02, -0.06, -0.22);      // left sleeve/hand
-      add(new THREE.BoxGeometry(0.09, 0.09, 0.2), MATS.navy, 0.04, -0.09, 0.15);         // right sleeve/hand
+         // right sleeve/hand
       add(new THREE.BoxGeometry(0.06, 0.06, 0.08), MATS.skin, -0.02, -0.03, -0.4);
+      const rodGeo = new THREE.CylinderGeometry(0.006, 0.006, 1.0, 6); rodGeo.rotateX(Math.PI / 2);
+      this.rod = add(rodGeo, MATS.steel, 0, -0.035, -0.45);
+      const hand = this.hand = new THREE.Group();          // right hand + sleeve, animated during reload
+      const skin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.08), MATS.skin);
+      const sleeve = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.3), MATS.navy); sleeve.position.set(0, -0.02, 0.19);
+      hand.add(skin, sleeve); hand.position.set(0.04, -0.08, 0.12); gun.add(hand);
       this.cam.add(gun); gun.visible = false;
       this.muzzle = new THREE.Object3D(); this.muzzle.position.set(0, 0, -1.05); gun.add(this.muzzle);
     }
@@ -440,6 +510,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
     buildHUD() {
       this.el = { hud: $('hud'), score: $('h-score'), hits: $('h-hits'), time: $('h-time'), state: $('h-state'),
         rel: $('reload'), fill: $('reload-fill'), lab: $('reload-label'), info: $('tinfo'), msg: $('msg') };
+      this.hurtEl = $('hurt');
       this.cache = {};
     }
     set(key, el, text) { if (this.cache[key] !== text) { this.cache[key] = text; el.textContent = text; } }
@@ -458,15 +529,18 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       });
       addEventListener('mouseup', (e) => { if (e.button === 2) this.aiming = false; });
       addEventListener('contextmenu', (e) => e.preventDefault());
+      const keyMap = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd', ArrowUp: 'w', ArrowLeft: 'a', ArrowDown: 's', ArrowRight: 'd' };
+      addEventListener('keyup', (e) => { if (keyMap[e.code]) this.keys[keyMap[e.code]] = false; });
       addEventListener('keydown', (e) => {
         if (this.game.state !== 'PLAYING') return;
+        if (keyMap[e.code]) this.keys[keyMap[e.code]] = true;
         if (e.key === 'r' || e.key === 'R') this.reload();
         if (e.key === 'Shift') this.aiming = true;
       });
       addEventListener('keyup', (e) => { if (e.key === 'Shift') this.aiming = false; });
       document.addEventListener('pointerlockchange', () => {
         if (!this.locked() && this.game.state === 'PLAYING') {
-          this.game.pauseGame(); this.aiming = false; $('pause').classList.add('active');
+          this.game.pauseGame(); this.aiming = false; this.keys = {}; $('pause').classList.add('active');
         }
       });
       $('btn-resume').onclick = () => { $('pause').classList.remove('active'); this.game.resumeGame(); canvas.requestPointerLock(); };
@@ -477,16 +551,16 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
     locked() { return document.pointerLockElement === this.game.canvas; }
 
     /* ---------- Session ---------- */
-    start() {
-      const g = this.game;
+    start(mode) {
+      const g = this.game; this.mode = mode || this.mode || 'easy';
       document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
       this.sound.on = this.settings.audio; this.sound.unlock();
       this.clearTargets();
       for (let i = 0; i < C.targetCount; i++) this.spawnTarget(i);
       this.yaw = 0; this.pitch = 0; this.aiming = false; this.aim = 0; this.recoil = 0; this.kick = 0;
-      this.mstate = 'LOADED'; this.reloadT = 0; this.infoT = 0; this.msgT = 0;
+      this.mstate = 'LOADED'; this.reloadT = 0; this.infoT = 0; this.msgT = 0; this.hurtT = 0; this.hussars = []; this.hussarQ = [6];
       this.stats = { score: 0, hits: 0, shots: 0, best: 0, timeLeft: C.time };
-      this.cam.position.set(0, g.heightAt(0, C.playerZ) + C.eye, C.playerZ);
+      this.keys = {}; this.pos.set(0, 0, C.playerZ); this.cam.position.set(0, g.heightAt(0, C.playerZ) + C.eye, C.playerZ);
       this.cam.fov = C.fovHip; this.cam.updateProjectionMatrix();
       this.gun.visible = true; this.el.hud.hidden = false; this.cache = {};
       g.startGame(); g.onUpdate = (dt) => this.update(dt);
@@ -523,6 +597,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       t.wx = (Math.random() * 2 - 1) * C.rangeX; t.dead = 0; t.pause = Math.random();
     }
     clearTargets() {
+      for (const h of this.hussars.slice()) this.removeHussar(h);
       for (const t of this.targets) this.game.scene.remove(t.pivot);
       this.targets.length = 0; this.pickables.length = 0;
     }
@@ -542,8 +617,54 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
         t.body.position.y = Math.abs(Math.sin(this.game.time * t.speed * 4)) * 0.05;   // walk bob
       }
     }
-    isMoving(t) { return t.pause <= 0; }
-    targetOf(mesh) { return this.targets.find((t) => t.body === mesh.parent); }
+    isMoving(t) { return t.isHussar || t.pause <= 0; }
+    targetOf(mesh) { return this.hussars.find((h) => h.body === mesh.parent) || this.targets.find((t) => t.body === mesh.parent); }
+
+    /* Hussars gallop at you in a zigzag. Kill one and two more ride in (up to C.maxHussars alive). */
+    spawnHussar() {
+      const pivot = new THREE.Group(), body = buildHussar(); body.scale.setScalar(1.15); pivot.add(body);
+      const x = Math.max(-30, Math.min(30, this.pos.x + (Math.random() * 2 - 1) * 30)), z = this.pos.z - 85 - Math.random() * 10;
+      pivot.position.set(x, this.game.heightAt(x, z), z);
+      this.hussars.push({ pivot, body, meshes: body.children, isHussar: true, dead: 0, phase: Math.random() * 6, speed: 7 + Math.random(), dodgeT: 0, dodgeDir: 1, cool: 2 });
+      this.game.scene.add(pivot); this.pickables.push(...body.children);
+      this.sound.tone(440, 0.25, 0.2); this.say(this.hussars.length > 1 ? 'More hussars charging!' : 'Hussar charging!');
+    }
+    removeHussar(h) {
+      this.game.scene.remove(h.pivot); this.pickables = this.pickables.filter((m) => !h.meshes.includes(m));
+      const i = this.hussars.indexOf(h); if (i >= 0) this.hussars.splice(i, 1);
+    }
+    hussarKilled() { this.hussarQ.push(2.5, 4); }              // one falls, two more take his place
+    updateHussars(dt) {
+      for (let i = this.hussarQ.length - 1; i >= 0; i--) {
+        if ((this.hussarQ[i] -= dt) <= 0) { this.hussarQ.splice(i, 1); if (this.hussars.length < C.maxHussars) this.spawnHussar(); }
+      }
+      for (const h of this.hussars.slice()) this.updateHussar(h, dt);
+    }
+    updateHussar(h, dt) {
+      if (h.dead) { h.dead += dt; h.pivot.rotation.z = Math.min(h.dead * 3, 1) * 1.4; if (h.dead > 1.6) this.removeHussar(h); return; }
+      const cam = this.cam.position, p = h.pivot.position;
+      const dx = cam.x - p.x, dz = cam.z - p.z, dist = Math.hypot(dx, dz);
+      if (dist < 2.5) { this.hurtPlayer(); this.removeHussar(h); this.hussarQ.push(4); return; }
+      const fx = dx / dist, fz = dz / dist;                       // forward = toward you, side = perpendicular
+      h.phase += dt * 2.2;
+      let side = Math.sin(h.phase) * 4.5 * Math.min(1, dist / 25);   // constant zigzag
+      // Dodge: when your sights are on him he bolts sideways (cooldown lets a quick flick still land)
+      if (h.cool > 0) h.cool -= dt;
+      this.cam.getWorldDirection(this.v2); this.v.set(p.x - cam.x, p.y + 1.8 - cam.y, p.z - cam.z).normalize();
+      if (h.cool <= 0 && dist > 8 && this.v.dot(this.v2) > Math.cos(this.aiming ? 0.05 : 0.09)) {
+        h.dodgeDir = Math.random() < 0.5 ? -1 : 1; h.dodgeT = 0.55; h.cool = 1.5; h.phase += 3; this.sound.tone(700, 0.1, 0.12);
+      }
+      if (h.dodgeT > 0) { h.dodgeT -= dt; side = h.dodgeDir * 10; }
+      const vx = fx * h.speed - fz * side, vz = fz * h.speed + fx * side;
+      p.x += vx * dt; p.z += vz * dt; p.y = this.game.heightAt(p.x, p.z);
+      h.body.rotation.y = Math.atan2(vx, vz);
+      h.body.position.y = Math.abs(Math.sin(this.game.time * 11)) * 0.12;   // gallop bob
+    }
+    hurtPlayer() {
+      this.hurtT = 0.9; this.sound.ouch(); this.pitch += 0.1;
+      this.mstate = 'EMPTY'; this.reloadT = 0;                // musket knocked empty, reload again
+      this.say('Ouch! Musket empty. Reload (R)');
+    }
 
     /* ---------- Musket ---------- */
     fire() {
@@ -562,17 +683,67 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       if (!hit) return this.say('Miss');
       const t = this.targetOf(hit.object); if (!t || t.dead) return this.say('Miss');
       const [name, base] = ZONE[hit.object.userData.zone], dist = hit.distance;
-      const pts = Math.round(base * (1 + dist / 60) * (this.aiming ? 1.25 : 1) * (this.isMoving(t) ? 1.2 : 1));
+      const pts = Math.round(base * (1 + dist / 60) * (this.aiming ? 1.25 : 1) * (this.isMoving(t) ? 1.2 : 1) * (t.isHussar ? 2 : 1));
       t.dead = 0.001; this.pickables = this.pickables.filter((m) => !t.meshes.includes(m));
       const s = this.stats; s.score += pts; s.hits++; s.best = Math.max(s.best, dist);
-      this.sound.hit(); this.say(`Target hit — ${name}  +${pts}`);
+      if (t.isHussar) this.hussarKilled();
+      this.sound.hit(); this.say(`${t.isHussar ? 'Hussar down, two more charge!' : 'Target hit'} — ${name}  +${pts}`);
     }
     reload() {
       if (this.mstate === 'LOADED') return this.say('Musket loaded');
       if (this.mstate === 'RELOADING') return;
-      this.mstate = 'RELOADING'; this.reloadT = 0; this.stage = -1;
+      const p = this.gun.position, r = this.gun.rotation, h = this.hand.position;
+      this.startPose = [p.x, p.y, p.z, r.x, r.y, r.z, h.x, h.y, h.z, this.rod.position.z + 0.45];
+      this.mstate = 'RELOADING'; this.reloadT = 0; this.stage = -1; this.aiming = false;
+    }
+    stageSound(name) {
+      const s = this.sound;
+      if (name === 'click') s.burst(0.05, 4500, 0.35);
+      else if (name === 'tear') s.burst(0.2, 3200, 0.3);
+      else if (name === 'prime') s.burst(0.3, 2500, 0.15);
+      else if (name === 'frizzen') { s.tone(1300, 0.08, 0.2); s.burst(0.04, 5000, 0.25); }
+      else if (name === 'pour') s.burst(0.55, 1200, 0.2);
+      else if (name === 'thud') s.tone(120, 0.15, 0.3);
+      else if (name === 'scrape') s.burst(0.4, 2000, 0.22);
+      else if (name === 'cock') { s.burst(0.05, 4500, 0.35); setTimeout(() => s.tone(900, 0.06, 0.25), 140); }
+    }
+    /* Animate the historical loading drill: each stage eases the musket and right hand into a new pose */
+    reloadStep(dt) {
+      this.reloadT += dt;
+      let acc = 0, i = 0;
+      for (; i < RELOAD.length; i++) { if (this.reloadT < acc + RELOAD[i].d) break; acc += RELOAD[i].d; }
+      if (i >= RELOAD.length) { this.mstate = 'LOADED'; this.say('Ready'); this.stage = -1; return; }
+      const s = RELOAD[i], lt = (this.reloadT - acc) / s.d;
+      if (i !== this.stage) { this.stage = i; this.ramN = 0; if (s.s) this.stageSound(s.s); }
+      const from = i ? RELOAD[i - 1].p : this.startPose, e = smooth(Math.min(lt / 0.55, 1));
+      const P = from.map((a, k) => a + (s.p[k] - a) * e);
+      let rod = P[9];
+      if (s.ram) {            // three ramming strokes, a thud at the bottom of each
+        const ph = lt * 3; rod = -0.7 + 0.3 * (1 - Math.cos(ph * Math.PI * 2)) / 2;
+        const n = Math.floor(ph + 0.5); if (n > 0 && n !== this.ramN) { this.ramN = n; this.sound.tone(110, 0.12, 0.3); }
+      }
+      if (s.rodHand) P[8] = -0.45 + rod - 0.4;
+      this.gun.position.set(P[0] + Math.sin(this.game.time * 7) * 0.003, P[1], P[2]);
+      this.gun.rotation.set(P[3], P[4], P[5]);
+      this.hand.position.set(P[6], P[7], P[8]); this.rod.position.z = -0.45 + rod;
+      const pct = Math.min(this.reloadT / RELOAD_TOTAL, 1);
+      this.el.fill.style.width = (pct * 100).toFixed(0) + '%';
+      this.set('rl', this.el.lab, `${s.n}  ${(pct * 100).toFixed(0)}%`);
     }
     say(text) { this.el.msg.textContent = text; this.el.msg.classList.add('on'); this.msgT = 1.2; }
+
+    /* WASD walking, relative to where you look; slower while aiming, kept inside the drill ground */
+    move(dt) {
+      const k = this.keys, mx = (k.d ? 1 : 0) - (k.a ? 1 : 0), mz = (k.s ? 1 : 0) - (k.w ? 1 : 0), p = this.pos;
+      if (mx || mz) {
+        const len = Math.hypot(mx, mz), sp = (this.aiming ? 2 : 4.5) * dt / len, sn = Math.sin(this.yaw), cs = Math.cos(this.yaw);
+        p.x = Math.max(-C.rangeX - 4, Math.min(C.rangeX + 4, p.x + (mx * cs + mz * sn) * sp));
+        p.z = Math.max(C.playerZ - 20, Math.min(C.playerZ + 12, p.z + (-mx * sn + mz * cs) * sp));
+        this.walkT += dt * (this.aiming ? 6 : 9);
+      }
+      const bob = (mx || mz) ? Math.sin(this.walkT) * 0.03 : 0;
+      this.cam.position.set(p.x, this.game.heightAt(p.x, p.z) + C.eye + bob, p.z);
+    }
 
     /* ---------- Frame update ---------- */
     update(dt) {
@@ -582,35 +753,32 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       if (s.timeLeft <= 0) return this.finish(false);
 
       cam.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
-      this.aim += ((this.aiming ? 1 : 0) - this.aim) * Math.min(1, dt * 10);
+      this.aim += ((this.aiming && this.mstate !== 'RELOADING' ? 1 : 0) - this.aim) * Math.min(1, dt * 10);
+      this.move(dt);
       cam.fov = C.fovHip + (C.fovAim - C.fovHip) * this.aim; cam.updateProjectionMatrix();
 
-      if (this.mstate === 'RELOADING') {
-        this.reloadT += dt; const p = Math.min(this.reloadT / C.reloadTime, 1), st = Math.min(Math.floor(p * 7), 6);
-        if (st !== this.stage) { this.stage = st; this.sound.click(); }
-        this.el.fill.style.width = (p * 100).toFixed(0) + '%';
-        this.set('rl', this.el.lab, `${STAGES[st]}  ${(p * 100).toFixed(0)}%`);
-        if (p >= 1) { this.mstate = 'LOADED'; this.say('Ready'); }
-      }
-      this.el.rel.classList.toggle('on', this.mstate === 'RELOADING');
-
-      // Musket viewmodel: hip -> aim blend, sway, recoil, reload dip
-      const sway = (1 - this.aim * 0.85), rl = this.mstate === 'RELOADING' ? Math.sin(Math.min(this.reloadT / C.reloadTime, 1) * Math.PI) : 0;
+      const rl = this.mstate === 'RELOADING';
+      if (rl) this.reloadStep(dt);
+      this.el.rel.classList.toggle('on', rl);
       this.recoil = Math.max(0, this.recoil - dt * 3.5);
-      this.gun.position.set(
-        0.2 * (1 - this.aim) + Math.sin(t * 1.3) * 0.004 * sway,
-        -0.22 + 0.19 * this.aim + Math.sin(t * 1.9) * 0.004 * sway - rl * 0.12,
-        -0.3 + 0.0 * this.aim + this.recoil * 0.14);
-      this.gun.rotation.set(this.recoil * 0.22 + rl * 0.5, -0.03 * (1 - this.aim), 0);
+      if (!rl) {               // normal hip / aim pose (reloading drives the pose itself)
+        const sway = 1 - this.aim * 0.85;
+        this.gun.position.set(0.2 * (1 - this.aim) + Math.sin(t * 1.3) * 0.004 * sway,
+          -0.22 + 0.19 * this.aim + Math.sin(t * 1.9) * 0.004 * sway, -0.3 + this.recoil * 0.14);
+        this.gun.rotation.set(this.recoil * 0.22, -0.03 * (1 - this.aim), 0);
+        this.hand.position.set(0.04, -0.08, 0.12); this.rod.position.z = -0.45;
+      }
 
       this.fx.update(dt); this.updateTargets(dt);
+      if (this.mode === 'hard') this.updateHussars(dt);
+      if (this.hurtT > 0) { this.hurtT = Math.max(0, this.hurtT - dt); this.hurtEl.style.opacity = this.hurtT / 0.9; }
       if (this.msgT > 0 && (this.msgT -= dt) <= 0) this.el.msg.classList.remove('on');
 
       // Target info under the crosshair (throttled)
       if ((this.infoT -= dt) <= 0) {
         this.infoT = 0.1; this.ray.setFromCamera({ x: 0, y: 0 }, cam);
         const h = this.ray.intersectObjects(this.pickables, false)[0];
-        if (h) { const tg = this.targetOf(h.object); this.set('ti', this.el.info, `Infantry · ${Math.round(h.distance)}m · ${tg && this.isMoving(tg) ? 'Moving' : 'Halted'}`); }
+        if (h) { const tg = this.targetOf(h.object); this.set('ti', this.el.info, `${tg && tg.isHussar ? 'Hussar' : 'Infantry'} · ${Math.round(h.distance)}m · ${tg && tg.isHussar ? 'Charging' : tg && this.isMoving(tg) ? 'Moving' : 'Halted'}`); }
         this.el.info.classList.toggle('on', !!h);
       }
 
@@ -654,7 +822,9 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
   $('btn-settings').onclick = () => show('settings');
   document.querySelectorAll('.back').forEach((b) => (b.onclick = () => show('menu')));
   const play = new E61.Gameplay(game, settings);
-  $('btn-play').onclick = () => play.start();
+  $('btn-play').onclick = () => show('mode');
+  $('btn-easy').onclick = () => play.start('easy');
+  $('btn-hard').onclick = () => play.start('hard');
 
   const bind = (id, key, isCheck) => {
     const el = $(id);
