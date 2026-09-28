@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>61e Floating Bubbles Gallery</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Oxanium', sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1a2e 100%);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bubble {
+            position: absolute;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            border: 3px solid rgba(255, 107, 53, 0.6);
+            overflow: hidden;
+        }
+
+        .bubble:hover {
+            transform: scale(1.1);
+            border-color: rgba(255, 107, 53, 1);
+            box-shadow: 0 8px 30px rgba(255, 107, 53, 0.4);
+        }
+
+        .bubble img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .bubble-label {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 107, 53, 0.9);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(26, 26, 46, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid rgba(255, 107, 53, 0.6);
+            z-index: 1000;
+        }
+
+        .controls h3 {
+            color: #ff6b35;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .control-btn {
+            background: #ff6b35;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn:hover {
+            background: #ff8555;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+        }
+
+        .control-btn:active {
+            transform: translateY(0);
+        }
+
+        .selected-bubble {
+            border-color: #ffd700 !important;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.6) !important;
+        }
+
+        .add-form {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 107, 53, 0.3);
+        }
+
+        .add-form input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 107, 53, 0.6);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 14px;
+        }
+
+        .add-form input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .size-display {
+            color: white;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff6b35;
+            font-size: 24px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading bubbles...</div>
+    <div id="canvas-container"></div>
+    
+    <div class="controls">
+        <h3>Bubble Controls</h3>
+        <div class="size-display">Selected: <span id="selected-name">None</span></div>
+        <div class="size-display">Size: <span id="size-display">-</span>px</div>
+        <button class="control-btn" onclick="increaseSizeSelected()">+ Bigger</button>
+        <button class="control-btn" onclick="decreaseSizeSelected()">- Smaller</button>
+        <button class="control-btn" onclick="deleteSelected()">Delete</button>
+        
+        <div class="add-form">
+            <input type="text" id="name-input" placeholder="Name (e.g., Macbeth)">
+            <input type="text" id="image-input" placeholder="Image URL">
+            <button class="control-btn" style="width: 100%;" onclick="addBubble()">Add Bubble</button>
+        </div>
+    </div>
+
+    <script>
+        const container = document.getElementById('canvas-container');
+        const loading = document.getElementById('loading');
+        let bubbles = [];
+        let selectedBubble = null;
+        let draggedBubble = null;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        // Storage key
+        const STORAGE_KEY = 'bubbles-data';
+
+        class Bubble {
+            constructor(name, imageUrl, x, y, size) {
+                this.name = name;
+                this.imageUrl = imageUrl;
+                this.x = x;
+                this.y = y;
+                this.size = size || 120;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.element = this.createElement();
+            }
+
+            createElement() {
+                const div = document.createElement('div');
+                div.className = 'bubble';
+                div.style.width = this.size + 'px';
+                div.style.height = this.size + 'px';
+                div.style.left = this.x + 'px';
+                div.style.top = this.y + 'px';
+
+                const img = document.createElement('img');
+                img.src = this.imageUrl;
+                img.alt = this.name;
+
+                const label = document.createElement('div');
+                label.className = 'bubble-label';
+                label.textContent = this.name;
+
+                div.appendChild(img);
+                div.appendChild(label);
+
+                div.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectBubble(this);
+                });
+
+                div.addEventListener('mousedown', (e) => {
+                    draggedBubble = this;
+                    offsetX = e.clientX - this.x;
+                    offsetY = e.clientY - this.y;
+                    e.preventDefault();
+                });
+
+                container.appendChild(div);
+                return div;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                const maxX = window.innerWidth - this.size;
+                const maxY = window.innerHeight - this.size;
+
+                if (this.x <= 0 || this.x >= maxX) {
+                    this.vx *= -1;
+                    this.x = Math.max(0, Math.min(this.x, maxX));
+                }
+                if (this.y <= 0 || this.y >= maxY) {
+                    this.vy *= -1;
+                    this.y = Math.max(0, Math.min(this.y, maxY));
+                }
+
+                this.element.style.left = this.x + 'px';
+                this.element.style.top = this.y + 'px';
+            }
+
+            updateSize(newSize) {
+                this.size = Math.max(80, Math.min(300, newSize));
+                this.element.style.width = this.size + 'px';
+                this.element.style.height = this.size + 'px';
+                saveBubbles();
+            }
+
+            toJSON() {
+                return {
+                    name: this.name,
+                    imageUrl: this.imageUrl,
+                    x: this.x,
+                    y: this.y,
+                    size: this.size
+                };
+            }
+        }
+
+        function selectBubble(bubble) {
+            if (selectedBubble) {
+                selectedBubble.element.classList.remove('selected-bubble');
+            }
+            selectedBubble = bubble;
+            bubble.element.classList.add('selected-bubble');
+            document.getElementById('selected-name').textContent = bubble.name;
+            document.getElementById('size-display').textContent = bubble.size;
+        }
+
+        function increaseSizeSelected() {
+            if (selectedBubble) {
+                selectedBubble.updateSize(selectedBubble.size + 20);
+                document.getElementById('size-display').textContent = selectedBubble.size;
+            }
+        }
+
+        function decreaseSizeSelected() {
+            if (selectedBubble) {
+                selectedBubble.updateSize(selectedBubble.size - 20);
+                document.getElementById('size-display').textContent = selectedBubble.size;
+            }
+        }
+
+        function deleteSelected() {
+            if (selectedBubble && confirm(`Delete ${selectedBubble.name}?`)) {
+                selectedBubble.element.remove();
+                bubbles = bubbles.filter(b => b !== selectedBubble);
+                selectedBubble = null;
+                document.getElementById('selected-name').textContent = 'None';
+                document.getElementById('size-display').textContent = '-';
+                saveBubbles();
+            }
+        }
+
+        function addBubble() {
+            const name = document.getElementById('name-input').value.trim();
+            const imageUrl = document.getElementById('image-input').value.trim();
+
+            if (!name || !imageUrl) {
+                alert('Please enter both name and image URL');
+                return;
+            }
+
+            const x = Math.random() * (window.innerWidth - 150);
+            const y = Math.random() * (window.innerHeight - 150);
+            const bubble = new Bubble(name, imageUrl, x, y, 120);
+            bubbles.push(bubble);
+
+            document.getElementById('name-input').value = '';
+            document.getElementById('image-input').value = '';
+
+            saveBubbles();
+        }
+
+       // SAVE — works instantly, no async needed
+function saveBubbles() {
+    const data = bubbles.map(b => b.toJSON());
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadBubbles() {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            const data = JSON.parse(saved);
+            data.forEach(item => {
+                const bubble = new Bubble(
+                    item.name,
+                    item.imageUrl,
+                    item.x || 100,
+                    item.y || 100,
+                    item.size || 120
+                );
+                bubbles.push(bubble);
+            });
+        } else {
+            createDefaultBubbles();
+        }
+    } catch (e) {
+        console.error(e);
+        createDefaultBubbles();
+    }
+    document.getElementById('loading').style.display = 'none';
+}
+
+        function createDefaultBubbles() {
+            const defaultData = [
+                { name: 'Macbeth', imageUrl: './assets/images/macbeth.jpg', x: 200, y: 200, size: 150 },
+                { name: 'Jcor', imageUrl: './assets/images/jcor.jpg', x: 500, y: 300, size: 130 }
+            ];
+
+            defaultData.forEach(item => {
+                const bubble = new Bubble(item.name, item.imageUrl, item.x, item.y, item.size);
+                bubbles.push(bubble);
+            });
+        }
+
+        function animate() {
+            if (!draggedBubble) {
+                bubbles.forEach(bubble => bubble.update());
+            }
+            requestAnimationFrame(animate);
+        }
+
+        document.addEventListener('mousemove', (e) => {
+            if (draggedBubble) {
+                draggedBubble.x = e.clientX - offsetX;
+                draggedBubble.y = e.clientY - offsetY;
+                draggedBubble.element.style.left = draggedBubble.x + 'px';
+                draggedBubble.element.style.top = draggedBubble.y + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (draggedBubble) {
+                saveBubbles();
+                draggedBubble = null;
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (e.target === container || e.target === document.body) {
+                if (selectedBubble) {
+                    selectedBubble.element.classList.remove('selected-bubble');
+                    selectedBubble = null;
+                    document.getElementById('selected-name').textContent = 'None';
+                    document.getElementById('size-display').textContent = '-';
+                }
+            }
+        });
+
+        // Initialize
+      loadBubbles();  // no promise anymore
+animate();      // start animation immediately after load
+    </script>
+</body>
+</html>

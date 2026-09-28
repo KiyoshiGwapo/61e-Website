@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>61e Demi-Brigade de Bataille</title>
+  <meta name="title" content="61e Demi-Brigade de Bataille">
+  <meta name="description" content="Mount & Blade Warband: Napoleonic Wars">
+
+  <link rel="shortcut icon" href="favicon.svg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700&family=Work+Sans:wght@600&display=swap"
+    rel="stylesheet">
+
+  <link rel="stylesheet" href="./assets/css/style.css">
+
+  <link rel="preload" as="image" href="./assets/images/hero-banner.png">
+  <link rel="preload" as="image" href="./assets/images/hero-banner-bg.png">
+
+  <style>
+    .bubbles-section {
+      min-height: 700px;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(10, 14, 39, 0.8) 0%, rgba(26, 26, 46, 0.8) 100%);
+      padding: 80px 0;
+    }
+
+    .bubble {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      transition: transform 0.3s ease;
+      z-index: 1;
+    }
+
+    .bubble:hover {
+      transform: scale(1.1);
+      z-index: 100;
+    }
+
+    .bubble-name {
+      background: linear-gradient(135deg, rgba(10, 14, 39, 0.8) 0%, rgba(26, 26, 46, 0.8) 100%);
+      color: rgb(255, 255, 255);
+      padding: 8px 16px;
+      border-radius: 16px;
+      font-size: 14px;
+      font-weight: 700;
+      white-space: nowrap;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+      margin-bottom: 10px;
+      z-index: 10;
+    }
+
+    .bubble-head {
+      border-radius: 50%;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      border: 3px solid rgba(15, 14, 14, 0.6);
+      transition: all 0.3s ease;
+    }
+
+    .bubble:hover .bubble-head {
+      border-color: rgb(255, 53, 53);
+      box-shadow: 0 8px 30px rgba(255, 107, 53, 0.6);
+    }
+
+    .bubble-head img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .health-bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 3px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .health-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ff0101 0%, #dd543b 100%);
+      transition: width 0.3s ease;
+      border-radius: 3px;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 60px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .section-header h2 {
+      font-size: 48px;
+      color: white;
+      margin-bottom: 15px;
+    }
+
+    .section-header .span {
+      color: var(--bittersweet);
+    }
+
+    .section-header p {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 18px;
+    }
+
+    .battle-log {
+      position: fixed;
+      top: 100px;
+      right: 20px;
+      background: rgba(26, 26, 46, 0.95);
+      padding: 15px;
+      border-radius: 12px;
+      border: 2px solid rgba(255, 107, 53, 0.6);
+      max-width: 250px;
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 1000;
+      transition: all 0.3s ease;
+    }
+
+    .battle-log.minimized {
+      max-height: 50px;
+      overflow: hidden;
+    }
+
+    .battle-log.minimized #log-container {
+      display: none;
+    }
+
+    .battle-log h3 {
+      color: #ff6b35;
+      margin-bottom: 10px;
+      font-size: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .toggle-btn {
+      background: rgba(255, 107, 53, 0.3);
+      border: none;
+      color: #ff6b35;
+      width: 25px;
+      height: 25px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+
+    .toggle-btn:hover {
+      background: rgba(255, 107, 53, 0.6);
+      color: white;
+    }
+
+    .log-entry {
+      color: white;
+      font-size: 13px;
+      padding: 8px;
+      margin: 5px 0;
+      background: rgba(255, 107, 53, 0.1);
+      border-radius: 6px;
+      border-left: 3px solid #ff6b35;
+    }
+
+    .hit-effect {
+      position: absolute;
+      color: #ff6b35;
+      font-weight: 700;
+      font-size: 20px;
+      pointer-events: none;
+      animation: hitPop 1s ease-out forwards;
+    }
+
+    @keyframes hitPop {
+      0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(-50px) scale(1.5);
+        opacity: 0;
+      }
+    }
+  </style>
+
+</head>
+
+<body id="top">
+
+  <header class="header active" data-header>
+    <div class="container">
+
+      <a href="#" class="logo">
+        <img src="./assets/images/logo.svg" width="110" height="22" alt="unigine home">
+      </a>
+
+      <nav class="navbar" data-navbar>
+        <ul class="navbar-list">
+
+          <li class="navbar-item">
+            <a href="index.html" class="navbar-link" data-nav-link>home</a>
+          </li>
+
+          <li class="navbar-item">
+            <a href="61eBubbleUsers.html" class="navbar-link" data-nav-link>61e Members Bubbles</a>
+          </li>
+
+        </ul>
+      </nav>
+
+      <a href="https://discord.gg/kKWjTkFHxm" class="btn" data-btn>Join Discord</a>
+
+      <button class="nav-toggle-btn" aria-label="toggle menu" data-nav-toggler>
+        <span class="line line-1"></span>
+        <span class="line line-2"></span>
+        <span class="line line-3"></span>
+      </button>
+
+    </div>
+  </header>
+
+  <main>
+    <article>
+
+      <!-- Floating Bubbles Section -->
+      <section class="bubbles-section">
+        <div class="container">
+          <div class="section-header">
+            <h3> <span class="span">61e Members</span></h2>
+            <!-- <p>Watch them battle it out in the arena!</p> -->
+          </div>
+          
+          <div id="bubbles-container" style="position: relative; min-height: 600px; padding-bottom: 60px;">
+            <!-- Bubbles will be generated here by JavaScript -->
+          </div>
+        </div>
+
+        <!-- Battle Log -->
+         <div class="battle-log" id="battle-log">
+          <h3 onclick="toggleBattleLog()">
+            ⚔️ Battle Log
+            <button class="toggle-btn" id="toggle-btn">−</button>
+          </h3>
+          <div id="log-container"></div>
+        </div>
+      </section>
+
+    </article>
+  </main>
+
+  <footer class="footer">
+
+    <div class="section footer-top">
+      <div class="container">
+
+        <div class="footer-brand">
+
+          <a href="#" class="logo">
+            <img src="./assets/images/logo.png" width="150" height="73" loading="lazy" alt="Unigine logo">
+          </a>
+
+          <p class="footer-text">
+           61e Demi-Brigade de Bataille
+Mount & Blade & More
+          </p>
+
+          <ul class="social-list">
+
+            <li>
+              <a href="https://discord.gg/kKWjTkFHxm" class="social-link">
+                <ion-icon name="logo-discord"></ion-icon>
+              </a>
+            </li>
+
+          </ul>
+
+        </div>
+
+        <div class="footer-list">
+
+          <p class="title footer-list-title has-after">Usefull Links</p>
+
+          <ul>
+
+            <li>
+              <a href="#" class="footer-link">Tournaments</a>
+            </li>
+
+          </ul>
+
+        </div>
+
+        <div class="footer-list">
+
+          <p class="title footer-list-title has-after">Contact Us</p>
+
+          <div class="contact-item">
+            <span class="span">Location:</span>
+
+            <address class="contact-link">
+             MACBETH, 61e City
+            </address>
+          </div>
+
+        </div>
+
+        <div class="footer-list">
+
+          <p class="title footer-list-title has-after">Newsletter Signup</p>
+
+          <form action="./index.html" method="get" class="footer-form">
+            <input type="email" name="email_address" required placeholder="Your Email" autocomplete="off"
+              class="input-field">
+
+            <button type="submit" class="btn" data-btn>Subscribe Now</button>
+          </form>
+
+        </div>
+
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <div class="container">
+
+        <p class="copyright">
+          &copy; 2025 Kiyoshi All Rights Reserved.
+        </p>
+
+      </div>
+    </div>
+
+  </footer>
+
+  <a href="#top" class="back-top-btn" aria-label="back to top" data-back-top-btn>
+    <ion-icon name="arrow-up-outline" aria-hidden="true"></ion-icon>
+  </a>
+
+  <div class="cursor" data-cursor></div>
+
+  <script src="./assets/js/script.js"></script>
+
+  <script>
+    // Members data
+    const members = [
+      { name: 'Col Macbeth', image: './assets/images/arenabubblesbattle/macbeth.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Jcor', image: './assets/images/arenabubblesbattle/jcor.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Abdulla', image: './assets/images/arenabubblesbattle/abdulla.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Selic', image: './assets/images/arenabubblesbattle/selic.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Banana', image: './assets/images/arenabubblesbattle/Banana.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Harvesting', image: './assets/images/arenabubblesbattle/harvesting.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Xerrand', image: './assets/images/arenabubblesbattle/Xerrand.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'SirQueen', image: './assets/images/arenabubblesbattle/SirQueen.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Hessian', image: './assets/images/arenabubblesbattle/Hessian.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Gray', image: './assets/images/arenabubblesbattle/Gray.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Vukan', image: './assets/images/arenabubblesbattle/Vulkan.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Fred', image: './assets/images/arenabubblesbattle/Fred.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Rebel', image: './assets/images/arenabubblesbattle/Rebel.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Kiyoshi', image: './assets/images/arenabubblesbattle/Kiyoshi.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Rochar', image: './assets/images/arenabubblesbattle/Rochar.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Maximus_Retardus', image: './assets/images/arenabubblesbattle/Maximus_Retardus.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Barteg', image: './assets/images/arenabubblesbattle/Barteg.png', size: 100, health: 100, maxHealth: 100 },
+      { name: 'Church', image: './assets/images/arenabubblesbattle/church.png', size: 100, health: 100, maxHealth: 100 }
+    ];
+
+   let bubbleElements = [];
+    const battleLog = [];
+
+    class BubbleFighter {
+      constructor(data, x, y) {
+        this.data = data;
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 2;
+        this.vy = (Math.random() - 0.5) * 2;
+        this.element = null;
+        this.healthBar = null;
+        this.target = null;
+        this.attackCooldown = 0;
+      }
+
+      create() {
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.style.left = this.x + 'px';
+        bubble.style.top = this.y + 'px';
+
+        const nameLabel = document.createElement('div');
+        nameLabel.className = 'bubble-name';
+        nameLabel.textContent = this.data.name;
+
+        const head = document.createElement('div');
+        head.className = 'bubble-head';
+        head.style.width = this.data.size + 'px';
+        head.style.height = this.data.size + 'px';
+
+        const img = document.createElement('img');
+        img.src = this.data.image;
+        img.alt = this.data.name;
+
+        const healthBarContainer = document.createElement('div');
+        healthBarContainer.className = 'health-bar';
+        healthBarContainer.style.width = this.data.size + 'px';
+
+        const healthFill = document.createElement('div');
+        healthFill.className = 'health-fill';
+        healthFill.style.width = '100%';
+
+        healthBarContainer.appendChild(healthFill);
+        head.appendChild(img);
+        bubble.appendChild(nameLabel);
+        bubble.appendChild(head);
+        bubble.appendChild(healthBarContainer);
+
+        this.element = bubble;
+        this.healthBar = healthFill;
+
+        return bubble;
+      }
+
+      update(container, allBubbles) {
+        if (this.data.health <= 0) return;
+
+        // Find nearest target
+        let nearest = null;
+        let nearestDist = Infinity;
+
+        allBubbles.forEach(other => {
+          if (other !== this && other.data.health > 0) {
+            const dx = other.x - this.x;
+            const dy = other.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < nearestDist) {
+              nearestDist = dist;
+              nearest = other;
+            }
+          }
+        });
+
+        // Move towards target
+        if (nearest) {
+          const dx = nearest.x - this.x;
+          const dy = nearest.y - this.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          // MOVEMENT SPEED (lower = slower movement)
+          this.vx = (dx / dist) * 0.8;
+          this.vy = (dy / dist) * 0.8;
+
+          // Attack if close enough
+          if (dist < this.data.size && this.attackCooldown <= 0) {
+            this.attack(nearest);
+            // ATTACK SPEED (higher = slower attacks)
+            this.attackCooldown = 120;
+          }
+        }
+
+        this.attackCooldown--;
+
+        // Move
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Collision detection with other bubbles
+        allBubbles.forEach(other => {
+          if (other !== this && other.data.health > 0) {
+            const dx = other.x - this.x;
+            const dy = other.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const minDist = (this.data.size + other.data.size) / 2;
+
+            if (dist < minDist) {
+              // Push apart
+              const angle = Math.atan2(dy, dx);
+              const overlap = minDist - dist;
+              this.x -= Math.cos(angle) * overlap * 0.5;
+              this.y -= Math.sin(angle) * overlap * 0.5;
+            }
+          }
+        });
+
+        // Bounce off walls
+        const maxX = container.offsetWidth - this.data.size;
+        const maxY = container.offsetHeight - this.data.size;
+
+        if (this.x <= 0 || this.x >= maxX) {
+          this.vx *= -1;
+          this.x = Math.max(0, Math.min(this.x, maxX));
+        }
+        if (this.y <= 0 || this.y >= maxY) {
+          this.vy *= -1;
+          this.y = Math.max(0, Math.min(this.y, maxY));
+        }
+
+        // Update position
+        this.element.style.left = this.x + 'px';
+        this.element.style.top = this.y + 'px';
+        
+        // Update z-index based on Y position (lower = in front)
+        this.element.style.zIndex = Math.floor(this.y);
+      }
+
+      attack(target) {
+        // DAMAGE AMOUNT (lower = longer battles)
+        const damage = Math.floor(Math.random() * 8) + 3; // Changed from 15+5 to 8+3 (3-10 damage instead of 5-20)
+        target.data.health = Math.max(0, target.data.health - damage);
+        
+        // Update health bar
+        const healthPercent = (target.data.health / target.data.maxHealth) * 100;
+        target.healthBar.style.width = healthPercent + '%';
+
+        // Show hit effect
+        this.showHitEffect(target, damage);
+
+        // Add to battle log
+        this.addLog(`${this.data.name} hit ${target.data.name} for ${damage} damage!`);
+
+        // Check if defeated
+        if (target.data.health <= 0) {
+          target.element.style.opacity = '0.3';
+          target.element.style.filter = 'grayscale(100%)';
+          this.addLog(`💀 ${target.data.name} has been defeated by ${this.data.name}!`);
+        }
+      }
+
+      showHitEffect(target, damage) {
+        const effect = document.createElement('div');
+        effect.className = 'hit-effect';
+        effect.textContent = `-${damage}`;
+        effect.style.left = (target.x + target.data.size / 2) + 'px';
+        effect.style.top = target.y + 'px';
+        document.getElementById('bubbles-container').appendChild(effect);
+
+        setTimeout(() => effect.remove(), 1000);
+      }
+
+      addLog(message) {
+        battleLog.unshift(message);
+        if (battleLog.length > 10) battleLog.pop();
+        
+        const logContainer = document.getElementById('log-container');
+        logContainer.innerHTML = battleLog.map(log => 
+          `<div class="log-entry">${log}</div>`
+        ).join('');
+      }
+    }
+
+    function createBubbles() {
+      const container = document.getElementById('bubbles-container');
+      const containerWidth = container.offsetWidth;
+      const containerHeight = 600;
+
+      bubbleElements = [];
+
+      members.forEach((member) => {
+        const x = Math.random() * (containerWidth - member.size - 100) + 50;
+        const y = Math.random() * (containerHeight - member.size - 100) + 50;
+        
+        const fighter = new BubbleFighter(member, x, y);
+        container.appendChild(fighter.create());
+        bubbleElements.push(fighter);
+      });
+
+      animate();
+    }
+
+    function animate() {
+      const container = document.getElementById('bubbles-container');
+      bubbleElements.forEach(bubble => {
+        bubble.update(container, bubbleElements);
+      });
+
+      // Check if only one fighter left
+      const aliveFighters = bubbleElements.filter(b => b.data.health > 0);
+      if (aliveFighters.length === 1) {
+        // Winner!
+        const winner = aliveFighters[0];
+        addLogGlobal(`🏆 ${winner.data.name} WINS THE BATTLE!`);
+        
+        // Respawn all after 3 seconds
+        setTimeout(() => {
+          addLogGlobal('🔄 Respawning all fighters...');
+          bubbleElements.forEach(bubble => {
+            bubble.data.health = bubble.data.maxHealth;
+            bubble.healthBar.style.width = '100%';
+            bubble.element.style.opacity = '1';
+            bubble.element.style.filter = 'grayscale(0%)';
+            
+            // Reset positions
+            const containerWidth = container.offsetWidth;
+            const containerHeight = 600;
+            bubble.x = Math.random() * (containerWidth - bubble.data.size - 100) + 50;
+            bubble.y = Math.random() * (containerHeight - bubble.data.size - 100) + 50;
+          });
+          addLogGlobal('⚔️ NEW BATTLE STARTING!');
+        }, 3000);
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    function addLogGlobal(message) {
+      battleLog.unshift(message);
+      if (battleLog.length > 10) battleLog.pop();
+      
+      const logContainer = document.getElementById('log-container');
+      logContainer.innerHTML = battleLog.map(log => 
+        `<div class="log-entry">${log}</div>`
+      ).join('');
+    }
+
+    function toggleBattleLog() {
+      const battleLogEl = document.getElementById('battle-log');
+      const toggleBtn = document.getElementById('toggle-btn');
+      
+      battleLogEl.classList.toggle('minimized');
+      
+      if (battleLogEl.classList.contains('minimized')) {
+        toggleBtn.textContent = '+';
+      } else {
+        toggleBtn.textContent = '−';
+      }
+    }
+
+    window.addEventListener('load', createBubbles);
+
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        document.getElementById('bubbles-container').innerHTML = '';
+        createBubbles();
+      }, 250);
+    });
+  </script>
+
+  <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
+  <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+
+</body>
+
+</html>
