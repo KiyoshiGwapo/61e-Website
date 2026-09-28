@@ -99,13 +99,13 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
   <main id="menu" class="screen active">
     <div class="menu-card">
       <h1 class="title"><span class="num">61<sup>e</sup></span> Game</h1>
-      <p class="subtitle">Musket Training - Be like Col Macbeth</p>
+           <p class="subtitle">Musket Training - Be like Col Macbeth</p>
       <nav class="menu-buttons">
         <button id="btn-play" class="btn primary">Play</button>
         <button id="btn-how" class="btn">How to play</button>
         <button id="btn-settings" class="btn">Settings</button>
       </nav>
-       <p class="foot">Belated HAPPY BIRTHDAY, SIR OZAN!!!!</p>
+            <p class="foot">Belated HAPPY BIRTHDAY, SIR OZAN!!!!</p>
     </div>
   </main>
 
@@ -128,10 +128,9 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       <dl class="keys">
         <dt>W A S D</dt><dd>Move</dd>
         <dt>Mouse</dt><dd>Look</dd>
-        <dt>Left click</dt><dd>Fire</dd>
+        <dt>Left click</dt><dd>Fire (or thrust when the bayonet is fixed)</dd>
         <dt>R</dt><dd>Reload</dd>
         <dt>T</dt><dd>Fix or remove bayonet (1.5 s)</dd>
-        <dt>X</dt><dd>Bayonet thrust (bayonet fixed; you cannot shoot)</dd>
         <dt>Shift</dt><dd>Aim and focus</dd>
         <dt>Right click</dt><dd>Aim (also Shift)</dd>
         <dt>Esc</dt><dd>Pause</dd>
@@ -536,7 +535,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       });
       addEventListener('mousedown', (e) => {
         if (!this.locked() || this.game.state !== 'PLAYING') return;
-        if (e.button === 0) this.fire(); else if (e.button === 2) this.aiming = true;
+        if (e.button === 0) { if (this.bay === 'fixed' || this.swap) this.melee(); else this.fire(); } else if (e.button === 2) this.aiming = true;
       });
       addEventListener('mouseup', (e) => { if (e.button === 2) this.aiming = false; });
       addEventListener('contextmenu', (e) => e.preventDefault());
@@ -547,7 +546,6 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
         if (keyMap[e.code]) this.keys[keyMap[e.code]] = true;
         if (e.key === 'r' || e.key === 'R') this.reload();
         if (e.key === 't' || e.key === 'T') this.toggleBayonet();
-        if (e.key === 'x' || e.key === 'X') this.melee();
         if (e.key === 'Shift') this.aiming = true;
       });
       addEventListener('keyup', (e) => { if (e.key === 'Shift') this.aiming = false; });
@@ -744,7 +742,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       this.el.fill.style.width = (pct * 100).toFixed(0) + '%';
       this.set('rl', this.el.lab, `${s.n}  ${(pct * 100).toFixed(0)}%`);
     }
-    /* ---------- Bayonet: T fixes/removes (1.5 s), X thrusts ---------- */
+    /* ---------- Bayonet: T fixes/removes (1.5 s), left click thrusts ---------- */
     toggleBayonet() {
       if (this.swap || this.meleeT > 0) return;
       if (this.mstate === 'RELOADING') return this.say('Finish reloading first');
@@ -776,7 +774,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       this.ray.setFromCamera({ x: 0, y: 0 }, this.cam); this.ray.far = 3.4;
       const hit = this.ray.intersectObjects(this.pickables, false)[0]; this.ray.far = Infinity;
       const t = hit && this.targetOf(hit.object);
-      if (!t || t.dead) return this.say('Thrust. Nothing in reach');
+      if (!t || t.dead) return this.say('61e CHARRGEEE -Col Macbeth');
       const [name, base] = ZONE[hit.object.userData.zone], pts = Math.round(base * 1.5 * (t.isHussar ? 2 : 1));
       t.dead = 0.001; this.pickables = this.pickables.filter((m) => !t.meshes.includes(m));
       this.stats.score += pts; this.stats.hits++; if (t.isHussar) this.hussarKilled();
@@ -844,7 +842,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       this.set('hi', this.el.hits, `${s.hits} / ${C.hitsToWin}`);
       this.set('tm', this.el.time, `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`);
       this.set('ms', this.el.state, { LOADED: 'Loaded', EMPTY: 'Empty — press R', RELOADING: 'Reloading' }[this.mstate]);
-      this.set('bm', this.el.mode, this.swap ? (this.swap.dir > 0 ? 'Fixing bayonet' : 'Removing bayonet') : this.bay === 'fixed' ? 'Bayonet fixed · X thrust · T remove' : '');
+      this.set('bm', this.el.mode, this.swap ? (this.swap.dir > 0 ? 'Fixing bayonet' : 'Removing bayonet') : this.bay === 'fixed' ? 'Bayonet fixed · Click thrust · T remove' : '');
       this.el.hud.classList.toggle('aiming', this.aim > 0.5);
     }
   }
