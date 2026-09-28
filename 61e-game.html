@@ -87,6 +87,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
 .btn small{display:block;font-size:.85rem;color:var(--powder);margin-top:.25rem}
 .btn.primary small{color:var(--navy)}
 #hurt{position:absolute;inset:0;opacity:0;background:radial-gradient(ellipse at center,rgba(160,0,0,.15) 30%,rgba(190,10,10,.85) 100%)}
+.hud-br span{display:block;color:var(--brass);font-size:1rem;margin-top:.15rem}
 
 </style>
 </head>
@@ -98,14 +99,13 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
   <main id="menu" class="screen active">
     <div class="menu-card">
       <h1 class="title"><span class="num">61<sup>e</sup></span> Game</h1>
-<p class="subtitle">Musket Training - Be like Col Macbeth</p>
-      <nav class="menu-buttons">
+      <p class="subtitle">Musket Training</p>
       <nav class="menu-buttons">
         <button id="btn-play" class="btn primary">Play</button>
         <button id="btn-how" class="btn">How to play</button>
         <button id="btn-settings" class="btn">Settings</button>
       </nav>
-            <p class="foot">Belated HAPPY BIRTHDAY, SIR OZAN!!!!</p>
+      <p class="foot">Regiment of the Line &middot; Training Ground</p>
     </div>
   </main>
 
@@ -115,7 +115,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       <h2>Choose difficulty</h2>
       <div class="menu-buttons">
         <button id="btn-easy" class="btn primary">Easy<small>Marching infantry targets</small></button>
-        <button id="btn-hard" class="btn">Hard<small>Hussars charge and dodge when you aim at them.</small></button>
+        <button id="btn-hard" class="btn">Hard<small>Hussars charge and dodge when you aim at them. Kill one and two more ride in. If one reaches you, your musket empties</small></button>
         <button class="btn back">Back</button>
       </div>
     </div>
@@ -130,6 +130,8 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
         <dt>Mouse</dt><dd>Look</dd>
         <dt>Left click</dt><dd>Fire</dd>
         <dt>R</dt><dd>Reload</dd>
+        <dt>T</dt><dd>Fix or remove bayonet (1.5 s)</dd>
+        <dt>X</dt><dd>Bayonet thrust (bayonet fixed; you cannot shoot)</dd>
         <dt>Shift</dt><dd>Aim and focus</dd>
         <dt>Right click</dt><dd>Aim (also Shift)</dd>
         <dt>Esc</dt><dd>Pause</dd>
@@ -153,7 +155,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
   <div id="hud" hidden>
     <div class="hud-tl"><small>Score</small><b id="h-score">0</b></div>
     <div class="hud-tc"><small>Targets</small><b id="h-hits">0 / 10</b><span id="h-time">5:00</span></div>
-    <div class="hud-br"><small>Musket</small><b id="h-state">Loaded</b></div>
+    <div class="hud-br"><small>Musket</small><b id="h-state">Loaded</b><span id="h-mode"></span></div>
     <div id="reload"><i id="reload-fill"></i><span id="reload-label"></span></div>
     <div id="cross"></div>
     <div id="tinfo"></div>
@@ -344,6 +346,9 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
     { n: 'Shoulder and full cock', d: 0.8, p: [0.2, -0.22, -0.3, 0, -0.03, 0, 0.035, 0.02, 0.02, 0], s: 'cock' }
   ];
   const RELOAD_TOTAL = RELOAD.reduce((a, s) => a + s.d, 0);
+  const SWAP_TIME = 1.5;                                        // seconds to fix or remove the bayonet
+  const BAYUP = [0.1, -0.42, -0.3, 0.7, 0, 0.05];
+  const lerp = (a, b, t) => a + (b - a) * t;
   const smooth = (x) => x * x * (3 - 2 * x);
   const ZONE = { head: ['Head', 100], torso: ['Torso', 50], arms: ['Arm', 25], legs: ['Leg', 20], horse: ['Horse', 40] };
   const $ = (id) => document.getElementById(id);
@@ -451,7 +456,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
   }
 
   /* ---------- Hussar: rider with sabre on a horse (Hard mode) ---------- */
-  MATS.horse = M(0x5b3a22); MATS.red = M(0xa02222);
+  MATS.blade = M(0xc9ced6); MATS.horse = M(0x5b3a22); MATS.red = M(0xa02222);
   function buildHussar() {
     const g = new THREE.Group();
     const part = (geo, mat, x, y, z, zone, rx, rz) => {
@@ -482,7 +487,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       this.buildMusket();
       this.buildHUD();
       this.bindInput();
-      this.stats = null; this.hussars = []; this.hussarQ = []; this.keys = {}; this.pos = new THREE.Vector3(); this.walkT = 0;
+      this.stats = null; this.bay = 'none'; this.swap = null; this.meleeT = 0; this.hussars = []; this.hussarQ = []; this.keys = {}; this.pos = new THREE.Vector3(); this.walkT = 0;
     }
 
     buildMusket() {
@@ -503,6 +508,12 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       const skin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.08), MATS.skin);
       const sleeve = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.3), MATS.navy); sleeve.position.set(0, -0.02, 0.19);
       hand.add(skin, sleeve); hand.position.set(0.04, -0.08, 0.12); gun.add(hand);
+      const bay = this.bayonet = new THREE.Group();          // socket bayonet: ring on the muzzle + steel blade
+      const ringGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.07, 8); ringGeo.rotateX(Math.PI / 2);
+      const ring = new THREE.Mesh(ringGeo, MATS.steel); ring.position.set(0, 0, -1.0);
+      const neck = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.012, 0.05), MATS.steel); neck.position.set(0.02, 0, -1.06);
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.024, 0.6), MATS.blade); blade.position.set(0.035, 0, -1.38);
+      bay.add(ring, neck, blade); gun.add(bay); bay.visible = false;
       this.cam.add(gun); gun.visible = false;
       this.muzzle = new THREE.Object3D(); this.muzzle.position.set(0, 0, -1.05); gun.add(this.muzzle);
     }
@@ -510,7 +521,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
     buildHUD() {
       this.el = { hud: $('hud'), score: $('h-score'), hits: $('h-hits'), time: $('h-time'), state: $('h-state'),
         rel: $('reload'), fill: $('reload-fill'), lab: $('reload-label'), info: $('tinfo'), msg: $('msg') };
-      this.hurtEl = $('hurt');
+      this.hurtEl = $('hurt'); this.el.mode = $('h-mode');
       this.cache = {};
     }
     set(key, el, text) { if (this.cache[key] !== text) { this.cache[key] = text; el.textContent = text; } }
@@ -535,6 +546,8 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
         if (this.game.state !== 'PLAYING') return;
         if (keyMap[e.code]) this.keys[keyMap[e.code]] = true;
         if (e.key === 'r' || e.key === 'R') this.reload();
+        if (e.key === 't' || e.key === 'T') this.toggleBayonet();
+        if (e.key === 'x' || e.key === 'X') this.melee();
         if (e.key === 'Shift') this.aiming = true;
       });
       addEventListener('keyup', (e) => { if (e.key === 'Shift') this.aiming = false; });
@@ -558,8 +571,8 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       this.clearTargets();
       for (let i = 0; i < C.targetCount; i++) this.spawnTarget(i);
       this.yaw = 0; this.pitch = 0; this.aiming = false; this.aim = 0; this.recoil = 0; this.kick = 0;
-      this.mstate = 'LOADED'; this.reloadT = 0; this.infoT = 0; this.msgT = 0; this.hurtT = 0; this.hussars = []; this.hussarQ = [6];
-      this.stats = { score: 0, hits: 0, shots: 0, best: 0, timeLeft: C.time };
+      this.mstate = 'LOADED'; this.reloadT = 0; this.bay = 'none'; this.swap = null; this.meleeT = 0; this.bayonet.visible = false; this.infoT = 0; this.msgT = 0; this.hurtT = 0; this.hussars = []; this.hussarQ = [6];
+      this.stats = { score: 0, hits: 0, shotHits: 0, shots: 0, best: 0, timeLeft: C.time };
       this.keys = {}; this.pos.set(0, 0, C.playerZ); this.cam.position.set(0, g.heightAt(0, C.playerZ) + C.eye, C.playerZ);
       this.cam.fov = C.fovHip; this.cam.updateProjectionMatrix();
       this.gun.visible = true; this.el.hud.hidden = false; this.cache = {};
@@ -576,7 +589,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       const s = this.stats, g = this.game;
       g.endGame(); if (this.locked()) document.exitPointerLock();
       $('end-title').textContent = won ? 'Mission complete' : 'Time is up';
-      const acc = s.shots ? (s.hits / s.shots * 100).toFixed(1) + '%' : '0%';
+      const acc = s.shots ? (s.shotHits / s.shots * 100).toFixed(1) + '%' : '0%';
       $('end-stats').innerHTML = `<dt>Score</dt><dd>${s.score}</dd><dt>Targets hit</dt><dd>${s.hits}</dd>` +
         `<dt>Shots fired</dt><dd>${s.shots}</dd><dt>Accuracy</dt><dd>${acc}</dd><dt>Best distance</dt><dd>${Math.round(s.best)}m</dd>`;
       $('end').classList.add('active');
@@ -668,6 +681,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
 
     /* ---------- Musket ---------- */
     fire() {
+      if (this.bay === 'fixed' || this.swap) return this.say('Remove the bayonet to shoot (T)');
       if (this.mstate === 'RELOADING') return;
       if (this.mstate === 'EMPTY') { this.sound.click(); this.say('Reload  (R)'); return; }
       this.mstate = 'EMPTY'; this.stats.shots++; this.recoil = 1; this.pitch += 0.035;
@@ -685,7 +699,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       const [name, base] = ZONE[hit.object.userData.zone], dist = hit.distance;
       const pts = Math.round(base * (1 + dist / 60) * (this.aiming ? 1.25 : 1) * (this.isMoving(t) ? 1.2 : 1) * (t.isHussar ? 2 : 1));
       t.dead = 0.001; this.pickables = this.pickables.filter((m) => !t.meshes.includes(m));
-      const s = this.stats; s.score += pts; s.hits++; s.best = Math.max(s.best, dist);
+      const s = this.stats; s.score += pts; s.hits++; s.shotHits++; s.best = Math.max(s.best, dist);
       if (t.isHussar) this.hussarKilled();
       this.sound.hit(); this.say(`${t.isHussar ? 'Hussar down, two more charge!' : 'Target hit'} — ${name}  +${pts}`);
     }
@@ -730,6 +744,44 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       this.el.fill.style.width = (pct * 100).toFixed(0) + '%';
       this.set('rl', this.el.lab, `${s.n}  ${(pct * 100).toFixed(0)}%`);
     }
+    /* ---------- Bayonet: T fixes/removes (1.5 s), X thrusts ---------- */
+    toggleBayonet() {
+      if (this.swap || this.meleeT > 0) return;
+      if (this.mstate === 'RELOADING') return this.say('Finish reloading first');
+      this.swap = { dir: this.bay === 'fixed' ? -1 : 1, t: 0 }; this.swapStage = -1; this.aiming = false; this.bayonet.visible = true;
+    }
+    swapStep(dt) {
+      const w = this.swap, k = Math.min((w.t += dt) / SWAP_TIME, 1), u = w.dir > 0 ? k : 1 - k;   // u: 0 = off, 1 = fixed
+      const stage = u < 0.3 ? 0 : u < 0.75 ? 1 : 2;
+      if (stage !== this.swapStage) { this.swapStage = stage; this.stageSound(['click', 'scrape', 'cock'][stage]); }
+      const lift = u < 0.3 ? smooth(u / 0.3) : u > 0.85 ? smooth((1 - u) / 0.15) : 1;   // raise musket, then lower it again
+      const off = u < 0.3 ? 1 : u < 0.75 ? 1 - smooth((u - 0.3) / 0.45) : 0;            // bayonet slides onto the muzzle
+      const twist = u < 0.75 ? 0.7 : u < 0.9 ? 0.7 * (1 - smooth((u - 0.75) / 0.15)) : 0;  // quarter-turn to lock
+      const P = BAYUP, gp = this.gun.position;
+      gp.set(lerp(HIP[0], P[0], lift), lerp(HIP[1], P[1], lift), lerp(HIP[2], P[2], lift));
+      this.gun.rotation.set(lerp(0, P[3], lift), lerp(HIP[4], P[4], lift), lerp(0, P[5], lift));
+      this.hand.position.set(lerp(HIP[6], 0, lift), lerp(HIP[7], 0.03, lift), lerp(HIP[8], -0.92, lift));
+      this.rod.position.z = -0.45;
+      this.bayonet.position.set(0, off * 0.12, -off * 0.45); this.bayonet.rotation.z = twist;
+      this.el.fill.style.width = (k * 100).toFixed(0) + '%';
+      this.set('rl', this.el.lab, `${w.dir > 0 ? 'Fixing bayonet' : 'Removing bayonet'}  ${(k * 100).toFixed(0)}%`);
+      if (k >= 1) { this.bay = w.dir > 0 ? 'fixed' : 'none'; this.swap = null; this.bayonet.visible = this.bay === 'fixed'; this.bayonet.position.set(0, 0, 0); this.bayonet.rotation.z = 0; }
+    }
+    melee() {
+      if (this.swap || this.meleeT > 0 || this.mstate === 'RELOADING') return;
+      if (this.bay !== 'fixed') return this.say('Fix the bayonet first (T)');
+      this.meleeT = 0.55; this.meleeHit = false; this.sound.burst(0.15, 2500, 0.25);
+    }
+    doMelee() {                    // short ray from the crosshair: bayonet reach
+      this.ray.setFromCamera({ x: 0, y: 0 }, this.cam); this.ray.far = 3.4;
+      const hit = this.ray.intersectObjects(this.pickables, false)[0]; this.ray.far = Infinity;
+      const t = hit && this.targetOf(hit.object);
+      if (!t || t.dead) return this.say('Thrust. Nothing in reach');
+      const [name, base] = ZONE[hit.object.userData.zone], pts = Math.round(base * 1.5 * (t.isHussar ? 2 : 1));
+      t.dead = 0.001; this.pickables = this.pickables.filter((m) => !t.meshes.includes(m));
+      this.stats.score += pts; this.stats.hits++; if (t.isHussar) this.hussarKilled();
+      this.sound.hit(); this.sound.burst(0.2, 900, 0.4); this.say(`Bayonet — ${name}  +${pts}`);
+    }
     say(text) { this.el.msg.textContent = text; this.el.msg.classList.add('on'); this.msgT = 1.2; }
 
     /* WASD walking, relative to where you look; slower while aiming, kept inside the drill ground */
@@ -738,7 +790,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       if (mx || mz) {
         const len = Math.hypot(mx, mz), sp = (this.aiming ? 2 : 4.5) * dt / len, sn = Math.sin(this.yaw), cs = Math.cos(this.yaw);
         p.x = Math.max(-C.rangeX - 4, Math.min(C.rangeX + 4, p.x + (mx * cs + mz * sn) * sp));
-        p.z = Math.max(C.playerZ - 20, Math.min(C.playerZ + 12, p.z + (-mx * sn + mz * cs) * sp));
+        p.z = Math.max(C.playerZ - 65, Math.min(C.playerZ + 12, p.z + (-mx * sn + mz * cs) * sp));
         this.walkT += dt * (this.aiming ? 6 : 9);
       }
       const bob = (mx || mz) ? Math.sin(this.walkT) * 0.03 : 0;
@@ -753,20 +805,25 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       if (s.timeLeft <= 0) return this.finish(false);
 
       cam.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
-      this.aim += ((this.aiming && this.mstate !== 'RELOADING' ? 1 : 0) - this.aim) * Math.min(1, dt * 10);
+      this.aim += ((this.aiming && this.mstate !== 'RELOADING' && !this.swap && this.bay !== 'fixed' ? 1 : 0) - this.aim) * Math.min(1, dt * 10);
       this.move(dt);
       cam.fov = C.fovHip + (C.fovAim - C.fovHip) * this.aim; cam.updateProjectionMatrix();
 
       const rl = this.mstate === 'RELOADING';
-      if (rl) this.reloadStep(dt);
-      this.el.rel.classList.toggle('on', rl);
+      if (rl) this.reloadStep(dt); else if (this.swap) this.swapStep(dt);
+      this.el.rel.classList.toggle('on', rl || !!this.swap);
       this.recoil = Math.max(0, this.recoil - dt * 3.5);
-      if (!rl) {               // normal hip / aim pose (reloading drives the pose itself)
+      if (!rl && !this.swap) {               // normal hip / aim pose (reloading drives the pose itself)
         const sway = 1 - this.aim * 0.85;
         this.gun.position.set(0.2 * (1 - this.aim) + Math.sin(t * 1.3) * 0.004 * sway,
           -0.22 + 0.19 * this.aim + Math.sin(t * 1.9) * 0.004 * sway, -0.3 + this.recoil * 0.14);
         this.gun.rotation.set(this.recoil * 0.22, -0.03 * (1 - this.aim), 0);
         this.hand.position.set(0.04, -0.08, 0.12); this.rod.position.z = -0.45;
+        if (this.meleeT > 0) {   // bayonet lunge: quick thrust out, slower recovery; the hit lands at the extension
+          this.meleeT -= dt; const u = 1 - Math.max(this.meleeT, 0) / 0.55, th = u < 0.3 ? smooth(u / 0.3) : 1 - smooth((u - 0.3) / 0.7);
+          this.gun.position.z -= 0.6 * th; this.gun.position.x -= 0.12 * th; this.gun.position.y += 0.05 * th; this.gun.rotation.x += 0.05 * th;
+          if (!this.meleeHit && u >= 0.3) { this.meleeHit = true; this.doMelee(); }
+        }
       }
 
       this.fx.update(dt); this.updateTargets(dt);
@@ -787,6 +844,7 @@ h2{font-family:var(--font-display);font-weight:400;font-size:2.2rem;margin-botto
       this.set('hi', this.el.hits, `${s.hits} / ${C.hitsToWin}`);
       this.set('tm', this.el.time, `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`);
       this.set('ms', this.el.state, { LOADED: 'Loaded', EMPTY: 'Empty — press R', RELOADING: 'Reloading' }[this.mstate]);
+      this.set('bm', this.el.mode, this.swap ? (this.swap.dir > 0 ? 'Fixing bayonet' : 'Removing bayonet') : this.bay === 'fixed' ? 'Bayonet fixed · X thrust · T remove' : '');
       this.el.hud.classList.toggle('aiming', this.aim > 0.5);
     }
   }
