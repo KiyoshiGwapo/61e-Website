@@ -986,7 +986,22 @@ body {
   .navbar-item,
   .navbar-item:last-child { border: none; }
 
-  .navbar-list { display: flex; }
+  .navbar {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .navbar-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .navbar-link {
+    padding: 10px clamp(6px, 0.8vw, 14px);
+    text-align: center;
+    line-height: 1.25;
+  }
 
   .header .btn {
     display: grid;
